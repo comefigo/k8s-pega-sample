@@ -1,0 +1,280 @@
+---
+global:
+  # This values.yaml file is an example of a minimal Pega
+  # deployment configuration.  For more information about
+  # configuration options, see the project readme.
+
+  # Enter your Kubernetes provider.
+  provider: "k8s"
+
+  # Deploy Pega nodes
+  actions:
+    execute: "deploy"
+  # Add custom certificates to be mounted to container
+  # to support custom certificates as plain text (less secure), pass them directly using the certificates parameter;
+  # to support multiple custom certificates as external secrets, specify each of your external secrets
+  # as an array of comma-separated strings using the certificatesSecrets parameter.
+  certificatesSecrets: []
+  certificates:
+
+  # Add krb5.conf file content here.
+  # Feature is used for Decisioning data flows to fetch data from Kafka or HBase streams
+  kerberos:
+
+  # If a storage class to be passed to the VolumeClaimTemplates in search and stream pods, it can be specified here:
+  storageClassName: ""
+  # Provide JDBC connection information to the Pega relational database
+  #   If you are installing or upgrading on IBM DB2, update the udb.conf file in the /charts/pega/charts/installer/config/udb directory with any additional connection properties.
+  jdbc:
+    #   url	Valid values are:
+    #
+    #   Oracle              jdbc:oracle:thin:@//localhost:1521/dbName
+    #   IBM DB/2 z / OS 	jdbc:db2://localhost:50000/dbName
+    #   IBM DB/2            jdbc:db2://localhost:50000/dbName:fullyMaterializeLobData=true;fullyMaterializeInputStreams=true;
+    #                       progressiveStreaming=2;useJDBC4ColumnNameAndLabelSemantics=2;
+    #   SQL Server          jdbc:sqlserver://localhost:1433;databaseName=dbName;selectMethod=cursor;sendStringParametersAsUnicode=false
+    #   PostgreSQL          jdbc:postgresql://localhost:5432/dbName
+    url: "YOUR_JDBC_URL"
+    #   driverClass 	-- jdbc class.  Valid values are:
+    #
+    #   Oracle              oracle.jdbc.OracleDriver
+    #   IBM DB/2            com.ibm.db2.jcc.DB2Driver
+    #   SQL Server          com.microsoft.sqlserver.jdbc.SQLServerDriver
+    #   PostgreSQL          org.postgresql.Driver
+    driverClass: "YOUR_JDBC_DRIVER_CLASS"
+    #   pega.database.type	Valid values are: mssql, oracledate, udb, db2zos, postgres
+    dbType: "YOUR_DATABASE_TYPE"
+    #   For databases that use multiple JDBC driver files (such as DB2), specify comma separated values for 'driverUri'
+    driverUri: "YOUR_JDBC_DRIVER_URI"
+    username: "YOUR_JDBC_USERNAME"
+    password: "YOUR_JDBC_PASSWORD"
+    # To avoid exposing username & password, leave the jdbc.password & jdbc.username parameters empty (no quotes),
+    # configure JDBC username & password parameters in the External Secrets Manager, and enter the external secret for the credentials
+    # make sure the keys in the secret should be DB_USERNAME and DB_PASSWORD respectively
+    external_secret_name: ""
+    # CUSTOM CONNECTION PROPERTIES
+    # Add a list of ; delimited connections properties. The list must end with ;
+    # For example: connectionProperties=user=usr;password=pwd;
+    connectionProperties: ""
+    rulesSchema: "YOUR_RULES_SCHEMA"
+    dataSchema: "YOUR_DATA_SCHEMA"
+    customerDataSchema: ""
+
+  customArtifactory:
+    # If you use a secured custom artifactory to manager your JDBC driver,
+    # provide the authentication details below by filling in the appropriate authentication section,
+    # either basic or apiKey.
+    authentication:
+      # Provide the basic authentication credentials or the API key authentication details to satisfy your custom artifactory authentication mechanism.
+      basic:
+        username: ""
+        password: ""
+      apiKey:
+        headerName: ""
+        value: ""
+      # To avoid exposing basic.username,basic.password,apiKey.headerName,apiKey.value parameters, configure the
+      # basic.username,basic.password,apiKey.headerName,apiKey.value parameters in External Secrets Manager, and enter the external secret for the credentials
+      # make sure the keys in the secret should be CUSTOM_ARTIFACTORY_USERNAME , CUSTOM_ARTIFACTORY_PASSWORD , CUSTOM_ARTIFACTORY_APIKEY_HEADER , CUSTOM_ARTIFACTORY_APIKEY
+      external_secret_name: ""
+    # Leave customArtifactory.enableSSLVerification enabled to ensure secure access to your custom artifactory;
+    # when customArtifactory.enableSSLVerification is false, SSL verification is skipped and establishes an insecure connection.
+    enableSSLVerification: true
+    # Provide a required domain certificate for your custom artifactory; if none is required, leave this field blank.
+    certificate:
+
+  docker:
+    # If using a custom Docker registry, supply the credentials here to pull Docker images.
+    registry:
+      url: "YOUR_DOCKER_REGISTRY"
+      username: "YOUR_DOCKER_REGISTRY_USERNAME"
+      password: "YOUR_DOCKER_REGISTRY_PASSWORD"
+    # To avoid exposing Docker registry details, create secrets to manage your Docker registry credentials.
+    # Specify secret names as an array of comma-separated strings in double quotation marks using the imagePullSecretNames parameter. For example: ["secret1", "secret2"]
+    imagePullSecretNames: []
+    # Docker image information for the Pega docker image, containing the application server.
+    pega:
+      image: "pegasystems/pega"
+
+  utilityImages:
+    busybox:
+      image: busybox:1.31.0
+      imagePullPolicy: IfNotPresent
+    k8s_wait_for:
+      image: pegasystems/k8s-wait-for
+      imagePullPolicy: "IfNotPresent"
+      # waitTimeSeconds: 2
+      # maxRetries: 1
+
+  # Specify the Pega tiers to deploy
+  # For a minimal deployment, use a single tier to reduce resource consumption.
+  # Note: The nodeType Stream is deprecated, please remove it and enable externalized Kafka service
+  # configuration under External Services
+  tier:
+    - name: "minikube"
+      nodeType: "Stream,BackgroundProcessing,WebUser,Search"
+
+      service:
+        httpEnabled: true
+        port: 80
+        targetPort: 8080
+        # Without a load balancer, use a direct NodePort instead.
+        serviceType: "NodePort"
+        # To configure TLS between the ingress/load balancer and the backend, set the following:
+        tls:
+          enabled: false
+          # To avoid entering the certificate values in plain text, configure the keystore, keystorepassword, cacertificate parameter
+          # values in the External Secrets Manager, and enter the external secret name below
+          # make sure the keys in the secret should be TOMCAT_KEYSTORE_CONTENT, TOMCAT_KEYSTORE_PASSWORD and ca.crt respectively
+          external_secret_name: ""
+          keystore:
+          keystorepassword:
+          port: 443
+          targetPort: 8443
+          # set the value of CA certificate here in case of baremetal/openshift deployments - CA certificate should be in base64 format
+          # pass the certificateChainFile file if you are using certificateFile and certificateKeyFile
+          cacertificate:
+          # provide the SSL certificate and private key as a PEM format
+          certificateFile:
+          certificateKeyFile:
+          # if you will deploy traefik addon chart and enable traefik, set enabled=true; otherwise leave the default setting.
+          traefik:
+            enabled: false
+            # the SAN of the certificate present inside the container
+            serverName: ""
+            # set insecureSkipVerify=true, if the certificate verification has to be skipped
+            insecureSkipVerify: false
+
+      ingress:
+        # Enter the domain name to access web nodes via a load balancer.
+        #  e.g. web.mypega.example.com
+        domain: "YOUR_MINIKUBE_NODE_DOMAIN"
+        # Configure custom path for given host along with pathType. Default pathType is ImplementationSpecific.
+        # path:
+        # pathType:
+
+      # Set resource consumption to minimal levels
+      replicas: 1
+      cpuRequest: 200m
+      memRequest: "6Gi"
+      cpuLimit: 2
+      memLimit: "6Gi"
+      javaOpts: ""
+      initialHeap: "4096m"
+      maxHeap: "4096m"
+      pegaDiagnosticUser: ""
+      pegaDiagnosticPassword: ""
+      volumeClaimTemplate:
+        resources:
+          requests:
+            storage: 5Gi
+
+# External services
+
+# Cassandra automatic deployment settings.
+# Disabled by default for minimal deployments.
+cassandra:
+  enabled: false
+
+# DDS (external Cassandra) connection settings.
+# These settings should only be modified if you are using a custom Cassandra deployment.
+dds:
+  # A comma separated list of hosts in the Cassandra cluster.
+  externalNodes: ""
+  # TCP Port to connect to cassandra.
+  port: "9042"
+  # The username for authentication with the Cassandra cluster.
+  username: "dnode_ext"
+  # The password for authentication with the Cassandra cluster.
+  password: "dnode_ext"
+  # To avoid exposing username,password,trustStorePassword,keyStorePassword parameters, configure the
+  # username,password,trustStorePassword,keyStorePassword parameters in External Secrets Manager, and enter the external secret for the credentials
+  # make sure the keys in the secret should be CASSANDRA_USERNAME, CASSANDRA_PASSWORD , CASSANDRA_TRUSTSTORE_PASSWORD , CASSANDRA_KEYSTORE_PASSWORD
+  external_secret_name: ""
+
+# Elasticsearch deployment settings.
+# Note: This Elasticsearch deployment is used for Pega search, and is not the same Elasticsearch deployment used by the EFK stack.
+# These search nodes will be deployed regardless of the Elasticsearch configuration above.
+# Refer to README document to configure `Search and Reporting Service` as a search functionality provider under this section.
+pegasearch:
+  image: "pegasystems/search"
+  memLimit: "3Gi"
+
+# Pega Installer settings
+installer:
+  image: "YOUR_INSTALLER_IMAGE:TAG"
+  adminPassword: "ADMIN_PASSWORD"
+
+# Hazelcast settings (applicable from Pega 8.6)
+hazelcast:
+  # Hazelcast docker image for platform version 8.6 through 8.7.x
+  image: "YOUR_HAZELCAST_IMAGE:TAG"
+  # Hazelcast docker image for platform version 8.8 and later
+  clusteringServiceImage: "YOUR_CLUSTERING_SERVICE_IMAGE:TAG"
+
+  # Setting below to true will deploy Pega Platform using a client-server Hazelcast model for version 8.6 through 8.7.x.
+  # Note: Make sure to set this value as "false" in case of Pega Platform version before "8.6". If not set this will fail the installation.
+  enabled: true
+
+  # Setting below to true will deploy Pega Platform using a client-server Hazelcast model for version 8.8 and later.
+  clusteringServiceEnabled: false
+
+  # Setting related to Hazelcast migration.
+  migration:
+    # Set to `true` to initiate the migration job.
+    initiateMigration: false
+    # Reference the `platform/clustering-service-kubectl` Docker image to create the migration job.
+    migrationJobImage: "YOUR_MIGRATION_JOB_IMAGE:TAG"
+    # Set to `true` when migrating from embedded Hazelcast.
+    embeddedToCSMigration: false
+    # Set to `true` to prevent Pega pod restart while decommissioning older version of externalized Hazelcast pods.
+    skipRestart: false
+
+  # No. of initial members to join
+  replicas: 3
+  # UserName in the client-server Hazelcast model authentication. This setting is exposed and not secure.
+  username: ""
+  # Password in the client-server Hazelcast model authentication. This setting is exposed and not secure.
+  password: ""
+  # To avoid exposing username and password parameters, leave these parameters empty and configure
+  # these cluster settings using an External Secrets Manager. Use the following keys in the secret:
+  # HZ_CS_AUTH_USERNAME for username and HZ_CS_AUTH_PASSWORD for password.
+  # Enter the external secret for these credentials below.
+  external_secret_name: ""
+
+# Stream (externalized Kafka service) settings.
+stream:
+  # Disabled by default, when enabled, your deployment no longer uses the "Stream" node type.
+  enabled: false
+  # Provide externalized Kafka service broker urls.
+  bootstrapServer: ""
+  # Provide Security Protocol used to communicate with kafka brokers. Supported values are: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL.
+  securityProtocol: PLAINTEXT
+  # If required, provide trustStore certificate file name
+  # When using a trustStore certificate, you must also include a Kubernetes secret name, that contains the trustStore certificate,
+  # in the global.certificatesSecrets parameter.
+  # Pega deployments only support trustStores using the Java Key Store (.jks) format.
+  trustStore: ""
+  # If required provide trustStorePassword value in plain text.
+  trustStorePassword: ""
+  # If required, provide keyStore certificate file name
+  # When using a keyStore certificate, you must also include a Kubernetes secret name, that contains the keyStore certificate,
+  # in the global.certificatesSecrets parameter.
+  # Pega deployments only support keyStores using the Java Key Store (.jks) format.
+  keyStore: ""
+  # If required, provide keyStore value in plain text.
+  keyStorePassword: ""
+  # If required, provide jaasConfig value in plain text.
+  jaasConfig: ""
+  # If required, provide a SASL mechanism**. Supported values are: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512.
+  saslMechanism: PLAIN
+  # By default, topics originating from Pega Platform have the pega- prefix,
+  # so that it is easy to distinguish them from topics created by other applications.
+  # Pega supports customizing the name pattern for your Externalized Kafka configuration for each deployment.
+  streamNamePattern: "pega-{stream.name}"
+  # Your replicationFactor value cannot be more than the number of Kafka brokers and 3.
+  replicationFactor: "1"
+  # To avoid exposing trustStorePassword, keyStorePassword, and jaasConfig parameters, leave the values empty and
+  # configure them using an External Secrets Manager, making sure you configure the keys in the secret in the order:
+  # STREAM_TRUSTSTORE_PASSWORD, STREAM_KEYSTORE_PASSWORD and STREAM_JAAS_CONFIG.
+  # Enter the external secret name below.
+  external_secret_name: ""
