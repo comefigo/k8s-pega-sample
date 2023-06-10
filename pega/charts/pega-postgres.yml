@@ -1,0 +1,130 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: common-config
+data:
+  TZ: "Asia/Tokyo"
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: pega-postgres-sc
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: Immediate
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pega-postgres-pvc
+spec:
+  storageClassName: pega-postgres-sc
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pega-postgres-pv
+spec:
+  storageClassName: pega-postgres-sc
+  volumeMode: Filesystem
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/var/lib/docker/volumes/pega-postgres-pv/data"
+    type: DirectoryOrCreate
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pega-postgres
+  labels:
+    role: db
+    env: dev
+    type: pega
+spec:
+  serviceName: pega-postgres
+  selector:
+    matchLabels:
+      role: db
+      env: dev
+      type: pega
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        role: db
+        env: dev
+        type: pega
+    spec:
+      # initContainers:
+      #   - name: sidecar
+      #     image: busybox
+      #     imagePullPolicy: IfNotPresent
+      #     command: ["/bin/sh", "-c"]
+      #     args:
+      #       - |
+      #         rm -fr /tmp/*
+      #     volumeMounts:
+      #       - mountPath: /tmp
+      #         name: pega-db-volume
+      containers:
+        - name: pega-postgres
+          image: "postgres:15.3-alpine3.18"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: "psql"
+              containerPort: 5432
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: pega-db-volume
+          env:
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: common-config
+                  key: TZ
+            - name: "POSTGRES_INITDB_ARGS"
+              value: "--encoding=UTF-8 --no-locale"
+            - name: "POSTGRES_USER"
+              value: "pega"
+            - name: "POSTGRES_PASSWORD"
+              value: "pegadb123456"
+            - name: "POSTGRES_DB"
+              value: "pegarules"
+          resources:
+            limits:
+              memory: 512Mi
+      restartPolicy: Always
+      volumes:
+        - name: pega-db-volume
+          persistentVolumeClaim:
+            claimName: pega-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pega-postgres
+  labels:
+    role: db
+    type: pega
+spec:
+  type: NodePort
+  ports:
+  - name: "psql-target-port"
+    port: 5432
+    targetPort: "psql"
+    nodePort: 32345
+  selector:
+    role: db
+    type: pega

@@ -1,6 +1,6 @@
 # 概要
 
-k8sベースのPega Systemsの動作環境(`Pega + PostgreSQL`)を構築するためのリポジトリです。<br/>
+Kubernetes(以下k8s)ベースのPega Systemsの動作環境(`Pega + PostgreSQL`)を構築するためのリポジトリです。<br/>
 ローカルでさくっと起動するための構成になっています。<br/>
 当リポジトリに記載されているユーザ名やパスワード、各種設定は<b>サンプル用</b>として利用してください。<br/>
 <span style="color:red;">本番運用では絶対利用しないこと！</span><br/>
@@ -8,9 +8,11 @@ k8sベースのPega Systemsの動作環境(`Pega + PostgreSQL`)を構築する�
 k8sの操作をしやすくする(入力補完、エイリアス)ためにリモートコンテナを利用していますが、不要な方は該当手順をスキップし、各種`k`コマンドを`kubectl`に置き換えて実行してください。
 
 
-# 動作環境
+# 動作確認環境
 
-- Kubernetes･･･1.25.9
+- Windows 10
+- Docker Desktop･･･4.20.1
+- k8s･･･1.25.9
 - kubectl･･･1.25.9
 - helm･･･3.11.3
 - 各種pegaコンテナイメージ･･･8.8.2
@@ -32,8 +34,10 @@ pega/charts/pega/               ･･･Pega公式のHelm Chart
 
 1. Docker Desktopをインストールする
 1. 非WSL2モードに設定（作者都合）<br/>
+    ついでに自動起動もOFF<br/>
     ![一般設定](./doc/docker_desktop_general_settings.png "一般設定")
 1. Kubernetesを有効化<br/>
+    ※Docker Desktopが更新されてもk8sのバージョンアップは自動更新されないので、k8sを更新したい場合は「リセット」ボタンからどうぞ<br/>
     ![k8s](./doc/docker_desktop_k8s_settings.png "k8s")
 1. 各種リソース条件を設定し、「Apply＆ restart」後に左下がすべて「緑」になるまで待機<br/>
     最低限：CPU>=4、メモリ>=12GB<br/>
@@ -52,17 +56,19 @@ pega/charts/pega/               ･･･Pega公式のHelm Chart
 
 ## リモートコンテナを起動する
 
+リモートコンテナを使用しない場合は、k8sと同バージョンのkubectl(`https://dl.k8s.io/release/v<バージョン>/bin/windows/amd64/kubectl.exe`)を取得してください
+
 1. Docker Desktopを起動する
 1. Docker Desktopのk8sの`config`(`%USERPROFILE%\.kube\config`)をkube-configにコピー<br/>
     複数のコンテキストがある場合、デフォルトを`docker-desktop`になるように編集してください
 1. VSCode「Remote Container」を起動する<br/>
     初回時間がかかります<br/>
-    ![リモートコンテナ起動](./doc/open-remote-container.png "リモートコンテナ起動")<br/>
-    左のエクスプローラーが表示されたら起動完了<br/>
-1. 「Ctrl」+「@」でターミナルを開く<br/>
+    ![リモートコンテナ起動](./doc/vscode_open_remote_container.png "リモートコンテナ起動")<br/>
+1. 左にエクスプローラーが表示されたら起動完了、`「Ctrl」+「@」`でターミナルを開く<br/>
     以降の手順はこのターミナルで実行していきます<br/>
+    ![ターミナル](./doc/vscode_terminal.png "ターミナル")<br/>
 1. 以下のコマンドを実行し、以下のような結果が返ってくればOK<br/>
-    `k`はkubectlのエイリアス<br/>
+    `k`はkubectlのエイリアスとして設定しています。詳しくは`.bashrc`を参照<br/>
     トラブルを避けるためにクライアントとサーバのバージョンは揃えておくと良い<br/>
     詳しくは[こちら](https://kubernetes.io/ja/docs/setup/release/version-skew-policy/)を参照<br/>
     ```shell
@@ -76,7 +82,9 @@ pega/charts/pega/               ･･･Pega公式のHelm Chart
 
 ## Pega
 
-以下のコマンドはすべて`pega/charts/`配下で実行します。
+以下のコマンドはすべて`pega/charts/`配下で実行します。<br/>
+なお、各種コマンドや設定値は[公式ドキュメント](https://github.com/pegasystems/pega-helm-charts)を元に（一部アレンジして）実行および設定していますので、必要に応じて参照してください。
+
 
 ### 1. namespace作成（オプション）
 
@@ -96,20 +104,21 @@ Runningになるまで確認すること
 k apply -f pega-postgres.yml
 ```
 
-### 3. 各種Dockerコンテナイメージをpullする
+### 3. 各種Pegaコンテナイメージをpullする
 
-installer、pega、searchは**バージョンを揃える**こと<br/>
+installer、pega、searchは<span style="color:red;">**バージョンを揃える**</span>こと<br/>
 installerは約7GBあるので、pull完了するまでにかなり時間がかかります。<br/>
-複数人で共有する場合は、ローカルネットワーク内にコンテナイメージレジストリ([Harbor](https://goharbor.io/))を設けて2人目以降はそこからpullすることをお勧めします。<br/>
+複数人で共有する場合は、ローカルネットワークにコンテナイメージレジストリ([Harbor](https://goharbor.io/))を設けて2人目以降はそこからpullすることをお勧めします。<br/>
 なお、ローカルのコンテナレジストリを設けた場合は、後続の手順や各種変数において該当箇所を適宜修正してください。<br/>
 
-下記のPega用dockerレジストリのユーザ名、PWは[公式ドキュメント](https://docs.pega.com/bundle/platform-88/page/platform/deployment/client-managed-cloud/pega-docker-images-manage.html#cmc-docker-images-overview)を参考に発行してください。
+下記のPega用dockerレジストリのユーザ名、PWは[公式ドキュメント](https://docs.pega.com/bundle/platform-88/page/platform/deployment/client-managed-cloud/pega-docker-images-manage.html#cmc-docker-images-overview)を参考に取得してください。
 
 ```shell
 # Pegaのプライベートリポジトリを参照できるようにログインする
 # successと表示されればOK
 docker login pega-docker.downloads.pega.com -u <ユーザ名> -p <キー>
 
+# コンテナイメージのtagは適宜変更してください
 docker pull pega-docker.downloads.pega.com/platform/installer:8.8.2
 docker pull pega-docker.downloads.pega.com/platform/pega:8.8.2
 docker pull pega-docker.downloads.pega.com/platform/search:8.8.2
@@ -123,7 +132,7 @@ docker pull pega-docker.downloads.pega.com/platform/clustering-service-kubectl:1
 詳しくは上記の公式ドキュメント
 
 ```shell
-curl -X GET https://pega-docker.downloads.pega.com/v2/_catalog -H "X-JFrog-Art-Api:<キー>"
+curl -X GET "https://pega-docker.downloads.pega.com/v2/_catalog" -H "X-JFrog-Art-Api:<キー>"
 ```
 
 #### 【番外編】特定のコンテナイメージの使用可能のタグ一覧を取得
