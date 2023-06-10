@@ -7,6 +7,10 @@ global:
   # Enter your Kubernetes provider.
   provider: "k8s"
 
+  # Podに一律プレフィックスを付与する
+  deployment:
+    name: "pega"
+
   # Deploy Pega nodes
   actions:
     execute: "deploy"
@@ -34,20 +38,20 @@ global:
     #                       progressiveStreaming=2;useJDBC4ColumnNameAndLabelSemantics=2;
     #   SQL Server          jdbc:sqlserver://localhost:1433;databaseName=dbName;selectMethod=cursor;sendStringParametersAsUnicode=false
     #   PostgreSQL          jdbc:postgresql://localhost:5432/dbName
-    url: "YOUR_JDBC_URL"
+    url: "jdbc:postgresql://pega-postgres.default.svc.cluster.local:5432/pegarules"
     #   driverClass 	-- jdbc class.  Valid values are:
     #
     #   Oracle              oracle.jdbc.OracleDriver
     #   IBM DB/2            com.ibm.db2.jcc.DB2Driver
     #   SQL Server          com.microsoft.sqlserver.jdbc.SQLServerDriver
     #   PostgreSQL          org.postgresql.Driver
-    driverClass: "YOUR_JDBC_DRIVER_CLASS"
+    driverClass: "org.postgresql.Driver"
     #   pega.database.type	Valid values are: mssql, oracledate, udb, db2zos, postgres
-    dbType: "YOUR_DATABASE_TYPE"
+    dbType: "postgres"
     #   For databases that use multiple JDBC driver files (such as DB2), specify comma separated values for 'driverUri'
-    driverUri: "YOUR_JDBC_DRIVER_URI"
-    username: "YOUR_JDBC_USERNAME"
-    password: "YOUR_JDBC_PASSWORD"
+    driverUri: "https://jdbc.postgresql.org/download/postgresql-42.6.0.jar"
+    username: "pega"
+    password: "pegadb123456"
     # To avoid exposing username & password, leave the jdbc.password & jdbc.username parameters empty (no quotes),
     # configure JDBC username & password parameters in the External Secrets Manager, and enter the external secret for the credentials
     # make sure the keys in the secret should be DB_USERNAME and DB_PASSWORD respectively
@@ -56,8 +60,8 @@ global:
     # Add a list of ; delimited connections properties. The list must end with ;
     # For example: connectionProperties=user=usr;password=pwd;
     connectionProperties: ""
-    rulesSchema: "YOUR_RULES_SCHEMA"
-    dataSchema: "YOUR_DATA_SCHEMA"
+    rulesSchema: "pegarules"
+    dataSchema: "pegadata"
     customerDataSchema: ""
 
   customArtifactory:
@@ -85,15 +89,16 @@ global:
   docker:
     # If using a custom Docker registry, supply the credentials here to pull Docker images.
     registry:
-      url: "YOUR_DOCKER_REGISTRY"
-      username: "YOUR_DOCKER_REGISTRY_USERNAME"
-      password: "YOUR_DOCKER_REGISTRY_PASSWORD"
+      url: "pega-docker.downloads.pega.com"
+      username: ""
+      password: ""
     # To avoid exposing Docker registry details, create secrets to manage your Docker registry credentials.
     # Specify secret names as an array of comma-separated strings in double quotation marks using the imagePullSecretNames parameter. For example: ["secret1", "secret2"]
     imagePullSecretNames: []
     # Docker image information for the Pega docker image, containing the application server.
     pega:
-      image: "pegasystems/pega"
+      image: "pega-docker.downloads.pega.com/platform/pega:8.8.2"
+      imagePullPolicy: "IfNotPresent"
 
   utilityImages:
     busybox:
@@ -110,7 +115,7 @@ global:
   # Note: The nodeType Stream is deprecated, please remove it and enable externalized Kafka service
   # configuration under External Services
   tier:
-    - name: "minikube"
+    - name: "web"
       nodeType: "Stream,BackgroundProcessing,WebUser,Search"
 
       service:
@@ -119,6 +124,8 @@ global:
         targetPort: 8080
         # Without a load balancer, use a direct NodePort instead.
         serviceType: "NodePort"
+        # 30000-32767
+        NodePort: 30000
         # To configure TLS between the ingress/load balancer and the backend, set the following:
         tls:
           enabled: false
@@ -147,7 +154,8 @@ global:
       ingress:
         # Enter the domain name to access web nodes via a load balancer.
         #  e.g. web.mypega.example.com
-        domain: "YOUR_MINIKUBE_NODE_DOMAIN"
+        # 使われないが、FQDNとして認識される適当な名前
+        domain: "pega-tier.local"
         # Configure custom path for given host along with pathType. Default pathType is ImplementationSpecific.
         # path:
         # pathType:
@@ -155,14 +163,14 @@ global:
       # Set resource consumption to minimal levels
       replicas: 1
       cpuRequest: 200m
-      memRequest: "6Gi"
+      memRequest: "1Gi"
       cpuLimit: 2
-      memLimit: "6Gi"
+      memLimit: "3Gi"
       javaOpts: ""
-      initialHeap: "4096m"
-      maxHeap: "4096m"
-      pegaDiagnosticUser: ""
-      pegaDiagnosticPassword: ""
+      initialHeap: "512m"
+      maxHeap: "2048m"
+      pegaDiagnosticUser: "pega"
+      pegaDiagnosticPassword: "pega123456"
       volumeClaimTemplate:
         resources:
           requests:
@@ -196,18 +204,22 @@ dds:
 # These search nodes will be deployed regardless of the Elasticsearch configuration above.
 # Refer to README document to configure `Search and Reporting Service` as a search functionality provider under this section.
 pegasearch:
-  image: "pegasystems/search"
+  image: "pega-docker.downloads.pega.com/platform/search:8.8.2"
+  imagePullPolicy: "IfNotPresent"
   memLimit: "3Gi"
+  replicas: 1
 
 # Pega Installer settings
 installer:
-  image: "YOUR_INSTALLER_IMAGE:TAG"
-  adminPassword: "ADMIN_PASSWORD"
+  image: "pega-docker.downloads.pega.com/platform/installer:8.8.2"
+  imagePullPolicy: "IfNotPresent"
+  adminPassword: "pega1234"
 
 # Hazelcast settings (applicable from Pega 8.6)
 hazelcast:
   # Hazelcast docker image for platform version 8.6 through 8.7.x
-  image: "YOUR_HAZELCAST_IMAGE:TAG"
+  image: "pega-docker.downloads.pega.com/platform/clustering-service:1.3.4"
+  imagePullPolicy: "IfNotPresent"
   # Hazelcast docker image for platform version 8.8 and later
   clusteringServiceImage: "YOUR_CLUSTERING_SERVICE_IMAGE:TAG"
 
@@ -223,18 +235,18 @@ hazelcast:
     # Set to `true` to initiate the migration job.
     initiateMigration: false
     # Reference the `platform/clustering-service-kubectl` Docker image to create the migration job.
-    migrationJobImage: "YOUR_MIGRATION_JOB_IMAGE:TAG"
+    migrationJobImage: "pega-docker.downloads.pega.com/platform/clustering-service-kubectl:1.0.0"
     # Set to `true` when migrating from embedded Hazelcast.
     embeddedToCSMigration: false
     # Set to `true` to prevent Pega pod restart while decommissioning older version of externalized Hazelcast pods.
     skipRestart: false
 
   # No. of initial members to join
-  replicas: 3
+  replicas: 1
   # UserName in the client-server Hazelcast model authentication. This setting is exposed and not secure.
-  username: ""
+  username: "admin"
   # Password in the client-server Hazelcast model authentication. This setting is exposed and not secure.
-  password: ""
+  password: "hazelcast1234"
   # To avoid exposing username and password parameters, leave these parameters empty and configure
   # these cluster settings using an External Secrets Manager. Use the following keys in the secret:
   # HZ_CS_AUTH_USERNAME for username and HZ_CS_AUTH_PASSWORD for password.

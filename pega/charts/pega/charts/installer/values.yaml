@@ -77,10 +77,10 @@ upgrade:
 # Memory and CPU settings for installer
 resources:
   requests:
-    memory: "5Gi"
+    memory: "1Gi"
     cpu: 1
   limits:
-    memory: "6Gi"
+    memory: "2Gi"
     cpu: 2
 
 shareProcessNamespace: false

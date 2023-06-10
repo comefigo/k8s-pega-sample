@@ -7,7 +7,7 @@ metadata:
   name: {{ .name }}
   namespace: {{ .root.Release.Namespace }}
 {{- if .node.service.annotations }}
-  annotations: 
+  annotations:
     # Custom annotations
 {{ toYaml .node.service.annotations | indent 4 }}
 {{- else }}
@@ -47,6 +47,9 @@ spec:
   - name: http
     port: {{ .node.service.port }}
     targetPort: {{ .node.service.targetPort }}
+    {{- if (eq .node.service.serviceType "NodePort") }}
+    nodePort: {{ .node.service.NodePort }}
+    {{- end }}
 {{- end }}
 {{- if (.node.service.tls).enabled }}
   - name: https
